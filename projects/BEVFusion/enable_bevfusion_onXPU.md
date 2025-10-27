@@ -27,6 +27,16 @@
 3. **Dataset**: NuScenes `v1.0-mini` tables staged under `data/nuscenes/` (10-scene subset).
 4. **Result**: mAP **0.5680**, NDS **0.5761** on XPU after sparse-kernel fix (checkpoint loads without warnings, evaluator completes).
 
+### XPU Ops Stress Script
+`projects/BEVFusion/tests/xpu_ops_stress.py` dynamically imports the BEV pooling and voxelization extensions and exercises them on an Intel XPU. It runs multiple configurations of `bev_pool`, voxelization, and `dynamic_scatter`, performing forward/backward passes while timing each case. Use it after building the extensions:
+
+```bash
+cd /home/intel/chuansheng/mmdetection3d
+python projects/BEVFusion/tests/xpu_ops_stress.py
+```
+
+Successful completion indicates the ported kernels are functional on XPU and provides quick sanity timings.
+
 ## Notes
 - The official README metrics (NDS 71.4 / mAP 68.6) correspond to the full NuScenes `v1.0-trainval` split with CUDA kernels. Our mini-split numbers are for bring-up and sanity check; download the full split to reproduce the published scores.
 - When full tables are available, flip the config metainfo back to `v1.0-trainval` and rerun the command above (or `tools/dist_test.sh … 8`) for definitive validation.
