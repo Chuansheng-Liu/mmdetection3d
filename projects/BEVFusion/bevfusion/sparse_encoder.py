@@ -1,4 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import torch
+
 from mmdet3d.models.layers import make_sparse_convmodule
 from mmdet3d.models.layers.spconv import IS_SPCONV2_AVAILABLE
 from mmdet3d.models.middle_encoders import SparseEncoder
@@ -149,3 +151,29 @@ class BEVFusionSparseEncoder(SparseEncoder):
             return spatial_features, encode_features
         else:
             return spatial_features
+
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict,
+                              missing_keys, unexpected_keys,
+                              error_msgs):
+        """Kernels in official checkpoints follow spconv v2 layout. Convert
+        them to the (D, H, W, in, out) layout expected by MMCV's operators
+        before deferring to the default loader."""
+        local_state = self.state_dict()
+        for name, param in local_state.items():
+            key = prefix + name
+            if key not in state_dict:
+                continue
+            weight = state_dict[key]
+            if not isinstance(weight, torch.Tensor) or not isinstance(param, torch.Tensor):
+                continue
+            if weight.ndim != 5 or param.ndim != 5:
+                continue
+            if weight.shape == param.shape:
+                continue
+            if (weight.shape[0] == param.shape[-1]
+                    and weight.shape[-1] == param.shape[-2]
+                    and weight.shape[1:4] == param.shape[0:3]):
+                state_dict[key] = weight.permute(1, 2, 3, 4, 0).contiguous()
+        super()._load_from_state_dict(state_dict, prefix, local_metadata,
+                                      strict, missing_keys, unexpected_keys,
+                                      error_msgs)
