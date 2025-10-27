@@ -150,7 +150,8 @@ class BEVFusion(Base3DDetector):
         BN, C, H, W = x.size()
         x = x.view(B, int(BN / B), C, H, W)
 
-        with torch.autocast(device_type='cuda', dtype=torch.float32):
+        device_type = x.device.type if isinstance(x, torch.Tensor) else 'cpu'
+        with torch.autocast(device_type=device_type, dtype=torch.float32):
             x = self.view_transform(
                 x,
                 points,
@@ -165,8 +166,10 @@ class BEVFusion(Base3DDetector):
 
     def extract_pts_feat(self, batch_inputs_dict) -> torch.Tensor:
         points = batch_inputs_dict['points']
-        with torch.autocast('cuda', enabled=False):
-            points = [point.float() for point in points]
+        module_device = next((p.device for p in self.parameters()), torch.device('cpu'))
+        autocast_device = module_device.type
+        with torch.autocast(device_type=autocast_device, enabled=False):
+            points = [point.to(module_device, dtype=torch.float32) for point in points]
             feats, coords, sizes = self.voxelize(points)
             batch_size = coords[-1, 0] + 1
         x = self.pts_middle_encoder(feats, coords, batch_size)

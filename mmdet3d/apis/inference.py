@@ -103,11 +103,21 @@ def init_model(config: Union[str, Path, Config],
                 model.dataset_meta['palette'] = 'random'
 
     model.cfg = config  # save the config in the model for convenience
-    if device != 'cpu':
-        torch.cuda.set_device(device)
-    else:
+    # honor alternative accelerators such as XPU while preserving the existing
+    # CUDA/CPU behavior.
+    if device == 'cpu':
         warnings.warn('Don\'t suggest using CPU device. '
                       'Some functions are not supported for now.')
+    else:
+        device_type = device.split(':')[0]
+        if device_type == 'cuda':
+            torch.cuda.set_device(device)
+        elif device_type == 'xpu':
+            if not hasattr(torch, 'xpu'):
+                raise RuntimeError('XPU device requested but torch.xpu missing')
+            torch.xpu.set_device(device)
+        else:
+            raise ValueError(f'Unsupported device type: {device_type}')
 
     model.to(device)
     model.eval()

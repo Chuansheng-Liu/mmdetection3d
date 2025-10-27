@@ -3,9 +3,36 @@ import argparse
 import os
 import os.path as osp
 
+import inspect
+import numpy as np
+import torch
+
+_orig_torch_load = torch.load
+
+
+_torch_load_signature = inspect.signature(_orig_torch_load)
+
+
+def _torch_load_allow_weights(*args, **kwargs):
+    if 'weights_only' in _torch_load_signature.parameters:
+        kwargs.setdefault('weights_only', False)
+    return _orig_torch_load(*args, **kwargs)
+
+
+torch.load = _torch_load_allow_weights
+
 from mmengine.config import Config, ConfigDict, DictAction
+from mmengine.logging.history_buffer import HistoryBuffer
 from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
+
+# Allow checkpoints saved with mmengine metadata to load with PyTorch 2.6 safety defaults.
+if hasattr(torch.serialization, 'add_safe_globals'):
+    safe_globals = [HistoryBuffer]
+    reconstruct = getattr(np.core.multiarray, '_reconstruct', None)
+    if reconstruct is not None:
+        safe_globals.append((reconstruct, 'numpy.core.multiarray._reconstruct'))
+    torch.serialization.add_safe_globals(safe_globals)
 
 from mmdet3d.utils import replace_ceph_backend
 
