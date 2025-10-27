@@ -61,16 +61,20 @@ def main(args):
     data_input = dict(points=points, img=img)
 
     # show the results
-    visualizer.add_datasample(
-        'result',
-        data_input,
-        data_sample=result,
-        draw_gt=False,
-        show=args.show,
-        wait_time=-1,
-        out_file=args.out_dir,
-        pred_score_thr=args.score_thr,
-        vis_task='multi-modality_det')
+    try:
+        visualizer.add_datasample(
+            'result',
+            data_input,
+            data_sample=result,
+            draw_gt=False,
+            show=args.show,
+            wait_time=-1,
+            out_file=args.out_dir,
+            pred_score_thr=args.score_thr,
+            vis_task='multi-modality_det')
+    except ImportError as err:
+        # Open3D is optional; skip visualization when it is unavailable.
+        print(f'Skip visualization: {err}')
 
 
 if __name__ == '__main__':
