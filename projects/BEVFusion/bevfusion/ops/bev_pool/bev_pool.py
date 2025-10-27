@@ -3,6 +3,24 @@ import torch
 from . import bev_pool_ext
 
 
+def _bev_pool_fallback(feats, coords, B, D, H, W):
+    """Fallback implementation that sums features into the BEV grid using
+    PyTorch scatter ops when the custom extension does not support the current
+    device (e.g. XPU)."""
+
+    C = feats.size(1)
+    total_elements = B * D * H * W
+    out = feats.new_zeros((total_elements, C))
+
+    linear_idx = (
+        coords[:, 0] * (W * D * B) + coords[:, 1] * (D * B) +
+        coords[:, 2] * B + coords[:, 3])
+    out.index_add_(0, linear_idx.long(), feats)
+
+    out = out.view(H, W, D, B, C).permute(3, 2, 0, 1, 4).contiguous()
+    return out
+
+
 class QuickCumsum(torch.autograd.Function):
 
     @staticmethod
@@ -89,6 +107,15 @@ def bev_pool(feats, coords, B, D, H, W):
     indices = ranks.argsort()
     feats, coords, ranks = feats[indices], coords[indices], ranks[indices]
 
-    x = QuickCumsumCuda.apply(feats, coords, ranks, B, D, H, W)
+    if feats.device.type == 'xpu':
+        x = _bev_pool_fallback(feats, coords, B, D, H, W)
+    else:
+        try:
+            x = QuickCumsumCuda.apply(feats, coords, ranks, B, D, H, W)
+        except RuntimeError as err:
+            if 'Unsupported device type' in str(err):
+                x = _bev_pool_fallback(feats, coords, B, D, H, W)
+            else:
+                raise
     x = x.permute(0, 4, 1, 2, 3).contiguous()
     return x

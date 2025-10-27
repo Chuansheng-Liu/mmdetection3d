@@ -54,6 +54,37 @@ void dynamic_point_to_voxel_backward_gpu(torch::Tensor &grad_feats,
                                          const reduce_t reduce_type);
 #endif
 
+#ifdef WITH_XPU
+int hard_voxelize_xpu(const at::Tensor &points, at::Tensor &voxels,
+            at::Tensor &coors, at::Tensor &num_points_per_voxel,
+            const std::vector<float> voxel_size,
+            const std::vector<float> coors_range,
+            int max_points, int max_voxels, int NDim = 3);
+
+int nondisterministic_hard_voxelize_xpu(
+  const at::Tensor &points, at::Tensor &voxels, at::Tensor &coors,
+  at::Tensor &num_points_per_voxel, const std::vector<float> voxel_size,
+  const std::vector<float> coors_range, int max_points, int max_voxels,
+  int NDim = 3);
+
+void dynamic_voxelize_xpu(const at::Tensor &points, at::Tensor &coors,
+              const std::vector<float> voxel_size,
+              const std::vector<float> coors_range,
+              int NDim = 3);
+
+std::vector<torch::Tensor> dynamic_point_to_voxel_forward_xpu(
+  const torch::Tensor &feats, const torch::Tensor &coors,
+  const reduce_t reduce_type);
+
+void dynamic_point_to_voxel_backward_xpu(torch::Tensor &grad_feats,
+                     const torch::Tensor &grad_reduced_feats,
+                     const torch::Tensor &feats,
+                     const torch::Tensor &reduced_feats,
+                     const torch::Tensor &coors_idx,
+                     const torch::Tensor &reduce_count,
+                     const reduce_t reduce_type);
+#endif
+
 // Interface for Python
 inline int hard_voxelize(const at::Tensor &points, at::Tensor &voxels,
                          at::Tensor &coors, at::Tensor &num_points_per_voxel,
@@ -74,6 +105,19 @@ inline int hard_voxelize(const at::Tensor &points, at::Tensor &voxels,
 #else
     AT_ERROR("Not compiled with GPU support");
 #endif
+  } else if (points.device().type() == c10::DeviceType::XPU) {
+#ifdef WITH_XPU
+    if (deterministic) {
+      return hard_voxelize_xpu(points, voxels, coors, num_points_per_voxel,
+                               voxel_size, coors_range, max_points, max_voxels,
+                               NDim);
+    }
+    return nondisterministic_hard_voxelize_xpu(points, voxels, coors, num_points_per_voxel,
+                                               voxel_size, coors_range, max_points, max_voxels,
+                                               NDim);
+#else
+    TORCH_CHECK(false, "Not compiled with XPU support");
+#endif
   }
   return hard_voxelize_cpu(points, voxels, coors, num_points_per_voxel,
                            voxel_size, coors_range, max_points, max_voxels,
@@ -89,6 +133,12 @@ inline void dynamic_voxelize(const at::Tensor &points, at::Tensor &coors,
     return dynamic_voxelize_gpu(points, coors, voxel_size, coors_range, NDim);
 #else
     AT_ERROR("Not compiled with GPU support");
+#endif
+  } else if (points.device().type() == c10::DeviceType::XPU) {
+#ifdef WITH_XPU
+    return dynamic_voxelize_xpu(points, coors, voxel_size, coors_range, NDim);
+#else
+    TORCH_CHECK(false, "Not compiled with XPU support");
 #endif
   }
   return dynamic_voxelize_cpu(points, coors, voxel_size, coors_range, NDim);
@@ -114,6 +164,12 @@ inline std::vector<torch::Tensor> dynamic_point_to_voxel_forward(const torch::Te
 #else
     TORCH_CHECK(false, "Not compiled with GPU support");
 #endif
+  } else if (feats.device().type() == c10::DeviceType::XPU) {
+#ifdef WITH_XPU
+    return dynamic_point_to_voxel_forward_xpu(feats, coors, convert_reduce_type(reduce_type));
+#else
+    TORCH_CHECK(false, "Not compiled with XPU support");
+#endif
   }
   TORCH_CHECK(false, "do not support cpu yet");
   return std::vector<torch::Tensor>();
@@ -134,6 +190,15 @@ inline void dynamic_point_to_voxel_backward(torch::Tensor &grad_feats,
     return;
 #else
     TORCH_CHECK(false, "Not compiled with GPU support");
+#endif
+  } else if (grad_feats.device().type() == c10::DeviceType::XPU) {
+#ifdef WITH_XPU
+    dynamic_point_to_voxel_backward_xpu(
+        grad_feats, grad_reduced_feats, feats, reduced_feats, coors_idx, reduce_count,
+        convert_reduce_type(reduce_type));
+    return;
+#else
+    TORCH_CHECK(false, "Not compiled with XPU support");
 #endif
   }
   TORCH_CHECK(false, "do not support cpu yet");
