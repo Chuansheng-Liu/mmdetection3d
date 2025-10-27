@@ -22,9 +22,10 @@ version_file = 'mmdet3d/version.py'
 
 
 def get_version():
+    about = {}
     with open(version_file, 'r') as f:
-        exec(compile(f.read(), version_file, 'exec'))
-    return locals()['__version__']
+        exec(f.read(), about)
+    return about['__version__']
 
 
 def make_cuda_ext(name,
