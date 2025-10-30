@@ -7,11 +7,12 @@ from .setup_env import register_all_modules, setup_multi_processes
 from .typing_utils import (ConfigType, InstanceList, MultiConfig,
                            OptConfigType, OptInstanceList, OptMultiConfig,
                            OptSampleList, OptSamplingResultList)
+from .xpu_device_type import IS_XPU_AVAILABLE
 
 __all__ = [
     'collect_env', 'setup_multi_processes', 'compat_cfg',
     'register_all_modules', 'array_converter', 'ArrayConverter', 'ConfigType',
     'OptConfigType', 'MultiConfig', 'OptMultiConfig', 'InstanceList',
     'OptInstanceList', 'OptSamplingResultList', 'replace_ceph_backend',
-    'OptSampleList'
+    'OptSampleList', 'IS_XPU_AVAILABLE'
 ]

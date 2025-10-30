@@ -1,9 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+
 import pytest
 import torch
-
 from mmdet3d.models.layers import SparseBasicBlock
 from mmdet3d.models.layers.spconv import IS_SPCONV2_AVAILABLE
+from mmdet3d.utils import IS_XPU_AVAILABLE
 
 if IS_SPCONV2_AVAILABLE:
     from spconv.pytorch import (SparseConvTensor, SparseInverseConv3d,
@@ -12,28 +13,51 @@ else:
     from mmcv.ops import SparseConvTensor, SparseInverseConv3d, SubMConv3d
 
 
-def test_SparseBasicBlock():
-    if not torch.cuda.is_available():
-        pytest.skip('test requires GPU and torch+cuda')
-    voxel_features = torch.tensor(
-        [[6.56126, 0.9648336, -1.7339306, 0.315],
-         [6.8162713, -2.480431, -1.3616394, 0.36],
-         [11.643568, -4.744306, -1.3580885, 0.16],
-         [23.482342, 6.5036807, 0.5806964, 0.35]],
-        dtype=torch.float32).cuda()  # n, point_features
-    coordinates = torch.tensor(
-        [[0, 12, 819, 131], [0, 16, 750, 136], [1, 16, 705, 232],
-         [1, 35, 930, 469]],
-        dtype=torch.int32).cuda()  # n, 4(batch, ind_x, ind_y, ind_z)
+import pytest
+import torch
+from mmdet3d.models.layers import SparseBasicBlock
+from mmdet3d.models.layers.spconv import IS_SPCONV2_AVAILABLE
+from mmdet3d.utils import IS_XPU_AVAILABLE
 
-    # test
+@pytest.mark.parametrize('device', [
+    pytest.param('cuda', marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='requires CUDA support')),
+    pytest.param('xpu', marks=pytest.mark.skipif(not IS_XPU_AVAILABLE, reason='requires XPU support'))
+])
+def test_SparseBasicBlock(device):
+    if device == 'cuda':
+        voxel_features = torch.tensor(
+            [[6.56126, 0.9648336, -1.7339306, 0.315],
+             [6.8162713, -2.480431, -1.3616394, 0.36],
+             [11.643568, -4.744306, -1.3580885, 0.16],
+             [23.482342, 6.5036807, 0.5806964, 0.35]],
+            dtype=torch.float32, device='cuda')
+        coordinates = torch.tensor(
+            [[0, 12, 819, 131], [0, 16, 750, 136], [1, 16, 705, 232],
+             [1, 35, 930, 469]],
+            dtype=torch.int32, device='cuda')
+    elif device == 'xpu':
+        voxel_features = torch.tensor(
+            [[6.56126, 0.9648336, -1.7339306, 0.315],
+             [6.8162713, -2.480431, -1.3616394, 0.36],
+             [11.643568, -4.744306, -1.3580885, 0.16],
+             [23.482342, 6.5036807, 0.5806964, 0.35]],
+            dtype=torch.float32)
+        coordinates = torch.tensor(
+            [[0, 12, 819, 131], [0, 16, 750, 136], [1, 16, 705, 232],
+             [1, 35, 930, 469]],
+            dtype=torch.int32)
+        voxel_features = voxel_features.to('xpu')
+        coordinates = coordinates.to('xpu')
+    else:
+        pytest.skip('Unsupported device')
+
     input_sp_tensor = SparseConvTensor(voxel_features, coordinates,
                                        [41, 1600, 1408], 2)
     self = SparseBasicBlock(
         4,
         4,
         conv_cfg=dict(type='SubMConv3d', indice_key='subm1'),
-        norm_cfg=dict(type='BN1d', eps=1e-3, momentum=0.01)).cuda()
+        norm_cfg=dict(type='BN1d', eps=1e-3, momentum=0.01)).to(device)
     # test conv and bn layer
     assert isinstance(self.conv1, SubMConv3d)
     assert self.conv1.in_channels == 4
@@ -48,23 +72,41 @@ def test_SparseBasicBlock():
     assert out_features.features.shape == torch.Size([4, 4])
 
 
-def test_make_sparse_convmodule():
-    if not torch.cuda.is_available():
-        pytest.skip('test requires GPU and torch+cuda')
+
+@pytest.mark.parametrize('device', [
+    pytest.param('cuda', marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='requires CUDA support')),
+    pytest.param('xpu', marks=pytest.mark.skipif(not IS_XPU_AVAILABLE, reason='requires XPU support'))
+])
+def test_make_sparse_convmodule(device):
     from mmdet3d.models.layers import make_sparse_convmodule
 
-    voxel_features = torch.tensor(
-        [[6.56126, 0.9648336, -1.7339306, 0.315],
-         [6.8162713, -2.480431, -1.3616394, 0.36],
-         [11.643568, -4.744306, -1.3580885, 0.16],
-         [23.482342, 6.5036807, 0.5806964, 0.35]],
-        dtype=torch.float32).cuda()  # n, point_features
-    coordinates = torch.tensor(
-        [[0, 12, 819, 131], [0, 16, 750, 136], [1, 16, 705, 232],
-         [1, 35, 930, 469]],
-        dtype=torch.int32).cuda()  # n, 4(batch, ind_x, ind_y, ind_z)
+    if device == 'cuda':
+        voxel_features = torch.tensor(
+            [[6.56126, 0.9648336, -1.7339306, 0.315],
+             [6.8162713, -2.480431, -1.3616394, 0.36],
+             [11.643568, -4.744306, -1.3580885, 0.16],
+             [23.482342, 6.5036807, 0.5806964, 0.35]],
+            dtype=torch.float32, device='cuda')
+        coordinates = torch.tensor(
+            [[0, 12, 819, 131], [0, 16, 750, 136], [1, 16, 705, 232],
+             [1, 35, 930, 469]],
+            dtype=torch.int32, device='cuda')
+    elif device == 'xpu':
+        voxel_features = torch.tensor(
+            [[6.56126, 0.9648336, -1.7339306, 0.315],
+             [6.8162713, -2.480431, -1.3616394, 0.36],
+             [11.643568, -4.744306, -1.3580885, 0.16],
+             [23.482342, 6.5036807, 0.5806964, 0.35]],
+            dtype=torch.float32)
+        coordinates = torch.tensor(
+            [[0, 12, 819, 131], [0, 16, 750, 136], [1, 16, 705, 232],
+             [1, 35, 930, 469]],
+            dtype=torch.int32)
+        voxel_features = voxel_features.to('xpu')
+        coordinates = coordinates.to('xpu')
+    else:
+        pytest.skip('Unsupported device')
 
-    # test
     input_sp_tensor = SparseConvTensor(voxel_features, coordinates,
                                        [41, 1600, 1408], 2)
 
@@ -77,7 +119,7 @@ def test_make_sparse_convmodule():
         padding=0,
         conv_type='SubMConv3d',
         norm_cfg=dict(type='BN1d', eps=1e-3, momentum=0.01),
-        order=('conv', 'norm', 'act')).cuda()
+        order=('conv', 'norm', 'act')).to(device)
     assert isinstance(sparse_block0[0], SubMConv3d)
     assert sparse_block0[0].in_channels == 4
     assert sparse_block0[0].out_channels == 16
@@ -99,7 +141,7 @@ def test_make_sparse_convmodule():
         padding=0,
         conv_type='SparseInverseConv3d',
         norm_cfg=dict(type='BN1d', eps=1e-3, momentum=0.01),
-        order=('norm', 'act', 'conv'))
+        order=('norm', 'act', 'conv')).to(device)
     assert isinstance(sparse_block1[0], torch.nn.BatchNorm1d)
     assert isinstance(sparse_block1[1], torch.nn.ReLU)
     assert isinstance(sparse_block1[2], SparseInverseConv3d)

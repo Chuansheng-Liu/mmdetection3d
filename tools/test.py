@@ -7,6 +7,79 @@ import inspect
 import numpy as np
 import torch
 
+
+def _patch_cuda_with_xpu() -> None:
+    """Redirect common torch.cuda entry points to torch.xpu when available.
+
+    MMEngine still calls ``torch.cuda`` helpers while initialising the
+    distributed environment. On Intel® XPU builds those functions are either
+    absent or stubbed, so we mirror them to the XPU equivalents to keep the
+    upstream launcher logic working without further changes.
+    """
+
+    if not hasattr(torch, 'xpu'):
+        return
+
+    xpu = torch.xpu
+    cuda = torch.cuda
+
+    def _set_device(index):
+        xpu.set_device(index)
+
+    def _device_count():
+        return xpu.device_count()
+
+    def _current_device():
+        return xpu.current_device()
+
+    def _is_available():
+        return xpu.device_count() > 0
+
+    def _empty_cache():
+        if hasattr(xpu, 'empty_cache'):
+            xpu.empty_cache()
+
+    def _get_device_name(index):
+        return xpu.get_device_name(index)
+
+    def _get_device_properties(index):
+        return xpu.get_device_properties(index)
+
+    def _get_device_capability(index):
+        return xpu.get_device_capability(index)
+
+    def _max_memory_allocated(device=None):
+        return xpu.max_memory_allocated(device=device)
+
+    def _max_memory_reserved(device=None):
+        return xpu.max_memory_reserved(device=device)
+
+    def _memory_allocated(device=None):
+        return xpu.memory_allocated(device=device)
+
+    def _memory_reserved(device=None):
+        return xpu.memory_reserved(device=device)
+
+    def _reset_peak_memory_stats(device=None):
+        return xpu.reset_peak_memory_stats(device=device)
+
+    cuda.set_device = _set_device  # type: ignore[attr-defined]
+    cuda.device_count = _device_count  # type: ignore[attr-defined]
+    cuda.current_device = _current_device  # type: ignore[attr-defined]
+    cuda.is_available = _is_available  # type: ignore[attr-defined]
+    cuda.empty_cache = _empty_cache  # type: ignore[attr-defined]
+    cuda.get_device_name = _get_device_name  # type: ignore[attr-defined]
+    cuda.get_device_properties = _get_device_properties  # type: ignore[attr-defined]
+    cuda.get_device_capability = _get_device_capability  # type: ignore[attr-defined]
+    cuda.max_memory_allocated = _max_memory_allocated  # type: ignore[attr-defined]
+    cuda.max_memory_reserved = _max_memory_reserved  # type: ignore[attr-defined]
+    cuda.memory_allocated = _memory_allocated  # type: ignore[attr-defined]
+    cuda.memory_reserved = _memory_reserved  # type: ignore[attr-defined]
+    cuda.reset_peak_memory_stats = _reset_peak_memory_stats  # type: ignore[attr-defined]
+
+
+_patch_cuda_with_xpu()
+
 _orig_torch_load = torch.load
 
 

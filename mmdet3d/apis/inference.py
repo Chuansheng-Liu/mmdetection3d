@@ -13,10 +13,43 @@ from mmengine.config import Config
 from mmengine.dataset import Compose, pseudo_collate
 from mmengine.registry import init_default_scope
 from mmengine.runner import load_checkpoint
+from mmengine.logging.history_buffer import HistoryBuffer
+
+try:
+    from numpy.core.multiarray import _reconstruct as _np_reconstruct
+except ImportError:  # pragma: no cover - numpy internals differ by version
+    _np_reconstruct = None
 
 from mmdet3d.registry import DATASETS, MODELS
 from mmdet3d.structures import Box3DMode, Det3DDataSample, get_box_type
 from mmdet3d.structures.det3d_data_sample import SampleList
+
+_safe_globals = [HistoryBuffer]
+_safe_globals.append((np.ndarray, 'numpy.ndarray'))
+_safe_globals.append((np.dtype, 'numpy.dtype'))
+_safe_globals.append((np.generic, 'numpy.generic'))
+
+try:
+    import numpy.dtypes as _np_dtypes
+    for _name in getattr(_np_dtypes, '__all__', ()):  # pragma: no cover - import-time registry
+        _dtype_cls = getattr(_np_dtypes, _name, None)
+        if isinstance(_dtype_cls, type):
+            _safe_globals.append((_dtype_cls, f'numpy.dtypes.{_name}'))
+except Exception:  # pragma: no cover - optional feature
+    pass
+if _np_reconstruct is not None:
+    _safe_globals.append((_np_reconstruct, 'numpy.core.multiarray._reconstruct'))
+    try:
+        from numpy.core.multiarray import scalar as _np_scalar
+        _safe_globals.append((_np_scalar, 'numpy.core.multiarray.scalar'))
+    except ImportError:  # pragma: no cover - legacy numpy
+        pass
+
+try:
+    torch.serialization.add_safe_globals(_safe_globals)
+except AttributeError:
+    # Older PyTorch releases do not expose serialization.add_safe_globals.
+    pass
 
 
 def convert_SyncBN(config):
