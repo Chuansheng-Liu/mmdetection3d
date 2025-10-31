@@ -12,12 +12,14 @@ def make_backend_ext(name,
                      sources_cuda=None,
                      sources_xpu=None,
                      extra_args=None,
-                     extra_include_path=None):
+                     extra_include_path=None,
+                     extra_link_args=None):
 
     sources_cuda = sources_cuda or []
     sources_xpu = sources_xpu or []
     extra_args = extra_args or []
     extra_include_path = extra_include_path or []
+    extra_link_args = extra_link_args or []
 
     define_macros = []
     extra_compile_args = {'cxx': list(extra_args)}
@@ -46,6 +48,7 @@ def make_backend_ext(name,
         extension = CppExtension
         extra_compile_args['cxx'] += ['-fsycl', '-fsycl-unnamed-lambda']
         selected_sources += sources_xpu
+        extra_link_args.append('-fsycl')
         print(f'Compiling {name} with XPU backend')
     else:
         extension = CppExtension
@@ -57,6 +60,7 @@ def make_backend_ext(name,
         include_dirs=extra_include_path,
         define_macros=define_macros,
         extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
     )
 
 

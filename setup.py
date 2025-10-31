@@ -205,6 +205,11 @@ if __name__ == '__main__':
         url='https://github.com/open-mmlab/mmdetection3d',
         packages=find_packages(exclude=('configs', 'tools', 'demo')),
         include_package_data=True,
+        package_data={
+            '': ['*.so'],
+            'projects.BEVFusion.bevfusion.ops.voxel': ['*.so'],
+            'projects.BEVFusion.bevfusion.ops.bev_pool': ['*.so'],
+        },
         classifiers=[
             'Development Status :: 5 - Production/Stable',
             'License :: OSI Approved :: Apache Software License',
