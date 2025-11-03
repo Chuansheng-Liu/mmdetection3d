@@ -22,8 +22,8 @@ def check_file_for_hardcoded_paths(filepath):
     # Patterns to detect hardcoded absolute paths
     # Exclude common false positives like URLs, comments about paths, etc.
     patterns = [
-        r'["\']/(home|usr/local|opt)/[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)*',  # /home/user/...
-        r'["\'][A-Z]:\\Users\\[a-zA-Z0-9_-]+(\\[a-zA-Z0-9_.-]+)*',  # Windows paths C:\Users\...
+        r'["\']/(home|usr/local|opt)/[a-zA-Z0-9_-]+(/[^"\'\s]+)*',  # /home/user/...
+        r'["\'][A-Z]:\\Users\\[a-zA-Z0-9_-]+(\\[^"\'\s]+)*',  # Windows paths C:\Users\...
     ]
     
     # Files to skip
@@ -40,8 +40,18 @@ def check_file_for_hardcoded_paths(filepath):
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             for line_num, line in enumerate(f, 1):
                 # Track docstring state
-                if '"""' in line or "'''" in line:
-                    delim = '"""' if '"""' in line else "'''"
+                # Handle both """ and ''' but prioritize the first one found
+                triple_double = '"""'
+                triple_single = "'''"
+                
+                if triple_double in line:
+                    delim = triple_double
+                elif triple_single in line:
+                    delim = triple_single
+                else:
+                    delim = None
+                
+                if delim:
                     count = line.count(delim)
                     if count == 1:
                         if not in_docstring:
@@ -50,17 +60,21 @@ def check_file_for_hardcoded_paths(filepath):
                         elif delim == docstring_delim:
                             in_docstring = False
                             docstring_delim = None
+                            continue
                     elif count == 2:
                         # Opening and closing on same line
                         pass
-                    continue
+                    else:
+                        # count > 2, skip this complex case
+                        pass
                 
                 # Skip if we're in a docstring
                 if in_docstring:
                     continue
                     
                 # Skip lines that are clearly comments
-                if line.strip().startswith('#'):
+                stripped = line.strip()
+                if stripped.startswith('#'):
                     continue
                     
                 for pattern in patterns:
@@ -70,8 +84,8 @@ def check_file_for_hardcoded_paths(filepath):
                         # Skip if it's in a URL
                         if 'http://' in line or 'https://' in line:
                             continue
-                        # Skip if it's in a comment
-                        comment_pos = line.find('//')
+                        # Skip if it's in a Python comment (#)
+                        comment_pos = line.find('#')
                         if comment_pos != -1 and comment_pos < match.start():
                             continue
                             
