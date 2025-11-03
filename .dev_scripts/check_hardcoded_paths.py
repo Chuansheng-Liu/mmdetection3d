@@ -41,13 +41,17 @@ def check_file_for_hardcoded_paths(filepath):
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             for line_num, line in enumerate(f, 1):
                 # Track docstring state
-                # Handle both """ and ''' but prioritize the first one found
+                # Handle both """ and ''' by checking which appears first
                 triple_double = '"""'
                 triple_single = "'''"
                 
-                if triple_double in line:
+                pos_double = line.find(triple_double)
+                pos_single = line.find(triple_single)
+                
+                # Determine which delimiter appears first (if any)
+                if pos_double != -1 and (pos_single == -1 or pos_double < pos_single):
                     delim = triple_double
-                elif triple_single in line:
+                elif pos_single != -1:
                     delim = triple_single
                 else:
                     delim = None
@@ -61,13 +65,12 @@ def check_file_for_hardcoded_paths(filepath):
                         elif delim == docstring_delim:
                             in_docstring = False
                             docstring_delim = None
-                            continue
-                    elif count == 2:
-                        # Opening and closing on same line
-                        pass
-                    else:
-                        # count > 2, skip this complex case
-                        pass
+                        # Skip this line in either case
+                        continue
+                    elif count >= 2:
+                        # Opening and closing on same line (or more complex)
+                        # Skip this line as it's part of a docstring
+                        continue
                 
                 # Skip if we're in a docstring
                 if in_docstring:
