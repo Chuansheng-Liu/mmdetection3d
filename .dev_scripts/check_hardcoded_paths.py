@@ -22,8 +22,8 @@ def check_file_for_hardcoded_paths(filepath):
     # Patterns to detect hardcoded absolute paths
     # Exclude common false positives like URLs, comments about paths, etc.
     patterns = [
-        r'["\']/(home|usr/local|opt)/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+',  # /home/user/...
-        r'["\'][A-Z]:\\Users\\[a-zA-Z0-9_-]+',  # Windows paths C:\Users\...
+        r'["\']/(home|usr/local|opt)/[a-zA-Z0-9_-]+(/[a-zA-Z0-9_.-]+)*',  # /home/user/...
+        r'["\'][A-Z]:\\Users\\[a-zA-Z0-9_-]+(\\[a-zA-Z0-9_.-]+)*',  # Windows paths C:\Users\...
     ]
     
     # Files to skip
@@ -33,23 +33,46 @@ def check_file_for_hardcoded_paths(filepath):
         return []
     
     issues = []
+    in_docstring = False
+    docstring_delim = None
+    
     try:
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             for line_num, line in enumerate(f, 1):
-                # Skip lines that are clearly comments about paths
-                if line.strip().startswith('#'):
-                    continue
+                # Track docstring state
                 if '"""' in line or "'''" in line:
+                    delim = '"""' if '"""' in line else "'''"
+                    count = line.count(delim)
+                    if count == 1:
+                        if not in_docstring:
+                            in_docstring = True
+                            docstring_delim = delim
+                        elif delim == docstring_delim:
+                            in_docstring = False
+                            docstring_delim = None
+                    elif count == 2:
+                        # Opening and closing on same line
+                        pass
+                    continue
+                
+                # Skip if we're in a docstring
+                if in_docstring:
+                    continue
+                    
+                # Skip lines that are clearly comments
+                if line.strip().startswith('#'):
                     continue
                     
                 for pattern in patterns:
-                    if re.search(pattern, line):
+                    match = re.search(pattern, line)
+                    if match:
                         # Additional validation to reduce false positives
                         # Skip if it's in a URL
                         if 'http://' in line or 'https://' in line:
                             continue
                         # Skip if it's in a comment
-                        if '//' in line and line.index('//') < line.index(pattern):
+                        comment_pos = line.find('//')
+                        if comment_pos != -1 and comment_pos < match.start():
                             continue
                             
                         issues.append((line_num, line.strip()))
