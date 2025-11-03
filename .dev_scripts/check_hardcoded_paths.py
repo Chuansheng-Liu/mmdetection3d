@@ -20,10 +20,11 @@ def check_file_for_hardcoded_paths(filepath):
         List of tuples (line_number, line_content) with issues found.
     """
     # Patterns to detect hardcoded absolute paths
-    # Exclude common false positives like URLs, comments about paths, etc.
+    # These patterns match quoted paths (both single and double quotes)
+    # and include the closing quote to properly capture paths with spaces
     patterns = [
-        r'["\']/(home|usr/local|opt)/[a-zA-Z0-9_-]+(/[^"\'\s]+)*',  # /home/user/...
-        r'["\'][A-Z]:\\Users\\[a-zA-Z0-9_-]+(\\[^"\'\s]+)*',  # Windows paths C:\Users\...
+        r'["\']/(home|usr/local|opt)/[a-zA-Z0-9_-]+(/[^"\']*)?["\']',  # /home/user/...
+        r'["\'][A-Z]:\\Users\\[a-zA-Z0-9_-]+(\\[^"\']*)?["\']',  # Windows paths C:\Users\...
     ]
     
     # Files to skip
