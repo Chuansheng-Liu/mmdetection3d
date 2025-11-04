@@ -2,7 +2,7 @@
 
 ## Environment
 - Python 3.13 with `pytorch-xpu` 2.4 build shipped for Intel® GPU.
-- Project root: `/home/intel/chuansheng/mmdetection3d`.
+- Project root: `${MMDET3D_ROOT}` (export this to point at your checkout).
 - Custom ops compiled via `projects/BEVFusion/setup.py develop` (kernels converted from CUDA with Intel® DPC++ Compatibility Tool).
 
 ## Key Modifications
@@ -18,10 +18,10 @@
 1. **Compile kernels**: `python projects/BEVFusion/setup.py develop`.
 2. **Single-device evaluation**:
    ```bash
-   cd /home/intel/chuansheng/mmdetection3d
+   cd "$MMDET3D_ROOT"
    PYTHONPATH=$(pwd) python tools/test.py \
      projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py \
-     ../bevfusion_model_data/checkpoints/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d-5239b1af.pth \
+     "${BEVFUSION_MODEL_DIR}/checkpoints/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d-5239b1af.pth" \
      --launcher none
    ```
 3. **Dataset**: NuScenes `v1.0-mini` tables staged under `data/nuscenes/` (10-scene subset).
@@ -41,12 +41,12 @@
 
 ```bash
 # 1. Activate the PyTorch XPU environment and run a single-sample demo inference
-. ~/chuansheng/pytorch_xpu/bin/activate
-cd /home/intel/chuansheng/mmdetection3d
+. "${PYTORCH_XPU_ENV}/bin/activate"
+cd "$MMDET3D_ROOT"
 PYTHONPATH=$(pwd) SYCL_DEVICE_FILTER=level_zero:gpu \
   python projects/BEVFusion/demo/multi_modality_demo.py \
     projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py \
-    ../bevfusion_model_data/bevfusion_converted.pth \
+    "${BEVFUSION_MODEL_DIR}/bevfusion_converted.pth" \
     --pcd demo/data/nuscenes/n015-2018-07-24-11-22-45+0800__LIDAR_TOP__1532402927647951.pcd.bin \
     --image-root demo/data/nuscenes/ \
     --ann demo/data/nuscenes/n015-2018-07-24-11-22-45+0800.pkl \
@@ -78,7 +78,7 @@ python projects/BEVFusion/demo/batch_export_predictions.py \
 `projects/BEVFusion/tests/xpu_ops_stress.py` dynamically imports the BEV pooling and voxelization extensions and exercises them on an Intel XPU. It runs multiple configurations of `bev_pool`, voxelization, and `dynamic_scatter`, performing forward/backward passes while timing each case. Use it after building the extensions:
 
 ```bash
-cd /home/intel/chuansheng/mmdetection3d
+cd "$MMDET3D_ROOT"
 python projects/BEVFusion/tests/xpu_ops_stress.py
 ```
 
