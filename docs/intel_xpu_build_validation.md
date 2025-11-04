@@ -81,6 +81,50 @@ FORCE_XPU=1 CC=icx CXX=icpx python projects/BEVFusion/setup.py build_ext --inpla
 # Compile the BEVFusion custom op immediately so SYCL mistakes fail the build instead of lingering until runtime.
 ```
 
+## Prepare NuScenes Dataset
+
+The BEVFusion configs expect the NuScenes metadata to live under the project’s `data/` directory. Define a dataset
+root (defaults to the workspace `data/nuscenes`) and download either the `v1.0-mini` tables for smoke testing or the
+full `v1.0-trainval` release for full evaluations.
+
+```bash
+export NUSCENES_ROOT=${NUSCENES_ROOT:-$WORKSPACE_ROOT/data/nuscenes}
+mkdir -p "$NUSCENES_ROOT"
+```
+
+1. **Download from Motional** – Log in to the official [NuScenes portal](https://www.nuscenes.org/download).
+    - For quick validation, grab the `v1.0-mini` *metadata*, *sweeps*, and *samples* archives.
+    - For full benchmarks, download every `v1.0-trainval` archive (metadata, sweeps, samples, maps).
+
+2. **Extract the tarballs** into `$NUSCENES_ROOT` so the directory layout matches the official structure
+    (`maps/`, `samples/`, `sweeps/`, `v1.0-mini/` or `v1.0-trainval/`, etc.). For example:
+
+    ```bash
+    tar -xf nuScenes-v1.0-mini_meta.tgz -C "$NUSCENES_ROOT"
+    tar -xf nuScenes-v1.0-mini_sweeps.tgz -C "$NUSCENES_ROOT"
+    tar -xf nuScenes-v1.0-mini_samples.tgz -C "$NUSCENES_ROOT"
+    ```
+
+3. **Link the dataset into the checkout** – BEVFusion looks for data relative to the repo root. Create a symlink so
+    `data/nuscenes` resolves to the extracted content:
+
+    ```bash
+    cd "$MMDET3D_ROOT"
+    ln -sfn "$NUSCENES_ROOT" data/nuscenes
+    ```
+
+4. *(Optional)* **Generate info files** – If you pulled the raw NuScenes release without pre-generated
+    annotations, run MMCV’s preparation script:
+
+    ```bash
+    cd "$MMDET3D_ROOT"
+    python tools/create_data.py nuscenes --root-path data/nuscenes --out-dir data/nuscenes --version v1.0-mini
+    # Replace v1.0-mini with v1.0-trainval when using the full dataset.
+    ```
+
+With the symlink in place, the commands in the “Smoke Tests” and “End-to-End Sanity” sections will find the NuScenes
+tables automatically.
+
 ## Package mmdetection3d for deployment(standalone usage)
 
 To ship mmdetection3d without depending on the editable checkout, build a wheel that bakes in the XPU custom ops. The build backend must run inside the pre-configured XPU environment, so we disable isolation and force the oneAPI toolchain.
