@@ -112,6 +112,19 @@ Adjust `--samples`/`--benchmark-samples` and the calibration subset path to fit
 your environment; both commands keep execution on XPU and stop once the requested
 sample count is measured.
 
+Observed on an Intel Data Center GPU Max 1550 (XPU) with the 256-frame calibration
+subset:
+
+| Model Variant | Samples (warm-up → measured) | FPS |
+|---------------|------------------------------|-----|
+| FP32 baseline | 20 → 180                      | 1.77 |
+| INT8 PTQ      | 20 → 180                      | 1.77 |
+
+Latency matches the FP32 reference because the skip list keeps the sparse 3D backbone
+in FP32 until `quantized::conv2d_relu.new` lands on XPU. The INT8 checkpoint still
+reduces state-dict size and preserves accuracy parity, so kernel enablement is the
+next lever for throughput gains.
+
 ## Outputs
 
 - Quantized checkpoint: `work_dirs/bevfusion_quantized_ptq.pth`.
