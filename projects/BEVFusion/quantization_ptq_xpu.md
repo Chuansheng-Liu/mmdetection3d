@@ -66,13 +66,12 @@ What happens under the hood:
    evaluation. An optional `--output /path/to/graph.pth` argument can be used to
    export the FX `GraphModule` snapshot for deployment.
 
-### Optional Fallback Diagnostics
+### Optional Kernel Diagnostics
 
-`PYTORCH_ENABLE_XPU_FALLBACK=1` is not required when the default skip list is
-used; the run completes without falling back to CPU kernels. To verify, you can
+The default skip list keeps execution entirely on XPU. To double-check, you can
 trace fallback decisions by setting `PYTORCH_DEBUG_XPU_FALLBACK=1` for a short
-subset, or by leaving the environment unset and observing the absence of warning
-messages.
+subset, or simply leave all fallback environment variables unset and confirm the
+absence of warning messages.
 
 ## Observed Metrics
 
