@@ -14,6 +14,7 @@ import argparse
 import copy
 import os
 import sys
+import time
 from contextlib import nullcontext
 from typing import Iterable, Sequence
 
@@ -86,6 +87,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument('--run-eval', action='store_true', help='Run runner.test() with the quantized model before exiting.')
     parser.add_argument('--eval-split', default='val', choices=('val', 'test'), help='Dataloader split to use when --run-eval is set.')
+    parser.add_argument('--benchmark-samples', type=int, default=0, help='Number of samples for latency benchmarking (0 disables benchmarking).')
+    parser.add_argument('--benchmark-warmup', type=int, default=5, help='Warm-up iterations skipped before measuring latency.')
+    parser.add_argument('--benchmark-log-interval', type=int, default=50, help='Logging interval for benchmark progress.')
     return parser.parse_args()
 
 
@@ -117,6 +121,13 @@ def _restore_fp32_modules(quantized: torch.nn.Module, reference: torch.nn.Module
     for attr in extra_attrs:
         if hasattr(reference, attr):
             setattr(quantized.model, attr, getattr(reference, attr))
+
+
+def _synchronize(device: torch.device) -> None:
+    if device.type == 'cuda' and torch.cuda.is_available():  # type: ignore[attr-defined]
+        torch.cuda.synchronize()  # type: ignore[no-untyped-call]
+    elif device.type == 'xpu' and hasattr(torch, 'xpu') and torch.xpu.is_available():  # type: ignore[attr-defined]
+        torch.xpu.synchronize()  # type: ignore[no-untyped-call]
 
 
 def main() -> None:
@@ -208,6 +219,51 @@ def main() -> None:
         print(f'[INFO] Quantized GraphModule exported to {args.output}')
     else:
         print('[INFO] Quantized GraphModule ready in memory (not exported).')
+
+    if args.benchmark_samples > 0:
+        if args.eval_split == 'val':
+            dataloader_cfg = cfg.val_dataloader
+        else:
+            dataloader_cfg = cfg.test_dataloader
+        benchmark_loader = runner.build_dataloader(dataloader_cfg, seed=cfg.get('seed'))
+
+        runner.model = quantized.model
+        runner.model.to(device)
+        runner.model.eval()
+        if hasattr(runner.model, 'data_preprocessor'):
+            runner.model.data_preprocessor.to(device)  # type: ignore[attr-defined]
+
+        warmup = max(args.benchmark_warmup, 0)
+        total = min(max(args.benchmark_samples, 0), len(benchmark_loader))
+        if total <= warmup:
+            warmup = max(total - 1, 0)
+        print(f'[INFO] Benchmarking latency on {total} samples (warm-up: {warmup}).')
+
+        pure_inf = 0.0
+        measured = 0
+        interval = max(args.benchmark_log_interval, 1)
+
+        with torch.no_grad():
+            for idx, batch in enumerate(benchmark_loader):
+                if idx >= total:
+                    break
+                _synchronize(device)
+                start = time.perf_counter()
+                runner.model.test_step(batch)
+                _synchronize(device)
+                elapsed = time.perf_counter() - start
+                if idx >= warmup:
+                    pure_inf += elapsed
+                    measured += 1
+                    if measured % interval == 0:
+                        fps = measured / pure_inf if pure_inf > 0 else 0.0
+                        print(f'[INFO] Benchmark progress: {idx + 1} samples processed, FPS={fps:.2f}')
+
+        if measured > 0 and pure_inf > 0:
+            fps = measured / pure_inf
+            print(f'[INFO] Benchmark complete: {measured} samples, FPS={fps:.2f}')
+        else:
+            print('[WARN] Benchmark skipped; insufficient measured samples after warm-up.')
 
     if args.run_eval:
         if cfg.get('default_scope'):

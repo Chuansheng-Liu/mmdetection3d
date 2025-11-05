@@ -81,6 +81,37 @@ absence of warning messages.
 The quantized model matches the FP32 baseline within rounding error while
 preserving XPU-only execution.
 
+### Latency Benchmark
+
+Two quick options are available to inspect throughput without burning through the
+entire NuScenes validation split:
+
+```bash
+# INT8 graph (evaluate ~200 samples from the calibration subset)
+python tools/analysis_tools/benchmark.py \
+  projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py \
+  work_dirs/bevfusion_quantized_ptq.pth \
+  --device xpu:0 \
+  --samples 200 \
+  --num-warmup 20 \
+  --cfg-options test_dataloader.dataset.ann_file=data/nuscenes/calib_subset/nuscenes_infos_calib.pkl
+
+# Inline benchmarking during graph restoration (shares the same dataset overrides)
+python tools/quantization/bevfusion_ptq_eval.py \
+  --config projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py \
+  --checkpoint ${FP32_CHECKPOINT} \
+  --quantized-checkpoint work_dirs/bevfusion_quantized_ptq.pth \
+  --calib-ann-file data/nuscenes/calib_subset/nuscenes_infos_calib.pkl \
+  --device xpu:0 \
+  --benchmark-samples 200 \
+  --benchmark-warmup 20 \
+  --cfg-options val_dataloader.dataset.ann_file=data/nuscenes/calib_subset/nuscenes_infos_calib.pkl
+```
+
+Adjust `--samples`/`--benchmark-samples` and the calibration subset path to fit
+your environment; both commands keep execution on XPU and stop once the requested
+sample count is measured.
+
 ## Outputs
 
 - Quantized checkpoint: `work_dirs/bevfusion_quantized_ptq.pth`.
