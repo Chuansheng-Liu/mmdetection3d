@@ -8,6 +8,7 @@ Pick a workspace directory (exported as `WORKSPACE_ROOT`) and clone both reposit
 export WORKSPACE_ROOT=${WORKSPACE_ROOT:-$HOME/xpu_bevfusion}
 export MMDET3D_ROOT=${MMDET3D_ROOT:-$WORKSPACE_ROOT/mmdetection3d}
 export MMCV_ROOT=${MMCV_ROOT:-$WORKSPACE_ROOT/mmcv}
+export MMENGINE_ROOT=${MMENGINE_ROOT:-$WORKSPACE_ROOT/mmengine}
 export PYTORCH_XPU_ENV=${PYTORCH_XPU_ENV:-$WORKSPACE_ROOT/pytorch_xpu}
 export BEVFUSION_MODEL_DIR=${BEVFUSION_MODEL_DIR:-$WORKSPACE_ROOT/bevfusion_model_data}
 
@@ -19,6 +20,9 @@ git clone https://github.com/Chuansheng-Liu/mmdetection3d.git -b xpu_bevfusion_p
 
 # mmcv
 git clone https://github.com/Chuansheng-Liu/mmcv.git -b xpu_ops_porting "$MMCV_ROOT"
+
+# mmengine
+git clone https://github.com/Chuansheng-Liu/mmengine.git -b xpu_ops_enabling "$MMENGINE_ROOT"
 ```
 
 ## Prepare Environment
@@ -28,6 +32,40 @@ Intel oneAPI and the PyTorch XPU environment must be active before any build or 
 ```bash
 source /opt/intel/oneapi/setvars.sh --force
 source "${PYTORCH_XPU_ENV}/bin/activate"
+export PYTHONPATH="${MMENGINE_ROOT}:${MMCV_ROOT}:${PYTHONPATH}"
+
+# Baseline Python dependencies for dataset tooling and OpenMMLab runtimes
+python -m pip install --upgrade setuptools wheel
+python -m pip install mmdet numba pyquaternion lyft_dataset_sdk nuscenes-devkit trimes
+python -m pip install distutils
+# mmengine is rebuilt from source below; installing the published wheel first ensures
+# scripts that import it during setup have the module available.
+python -m pip install mmengine
+```
+
+## Build mmengine (XPU runtime helpers)
+
+mmengine does not ship native extensions, but installing the `xpu_ops_enabling`
+branch ensures the distributed launcher picks up oneCCL support and the Python
+3.13-compatible setup script.
+
+```bash
+cd "$MMENGINE_ROOT"
+python -m pip install -e . --no-build-isolation
+```
+
+## Package mmengine for deployment (standalone usage)
+
+When a self-contained wheel is preferred over an editable checkout, build and
+install it directly. The package is pure Python, so no special compiler flags
+are required once the Intel XPU environment is active.
+
+```bash
+cd "$MMENGINE_ROOT"
+rm -rf build mmengine.egg-info dist
+python -m build --wheel
+# Wheel lands in dist/mmengine-<version>-py3-none-any.whl
+python -m pip install dist/mmengine-<version>-py3-none-any.whl
 ```
 
 ## Clean Previous Builds(optional)
@@ -144,7 +182,7 @@ The mmcv installation needs a CPU voxelization sanity check, and mmdetection3d m
 
 ```bash
 python -m pytest tests/test_utils/test_setup_env.py -q
-python -c "import mmcv, mmdet3d; print(mmcv.__version__, mmdet3d.__version__)"
+python -c "import mmengine, mmcv, mmdet3d; print(mmengine.__version__, mmcv.__version__, mmdet3d.__version__)"
 
 # mmcv voxelization on CPU
 cd "$MMCV_ROOT"
@@ -152,15 +190,15 @@ python -m pytest tests/test_ops/test_voxelization.py -k cpu --maxfail=1 --disabl
 
 # mmdetection3d environment setup test
 cd "$MMDET3D_ROOT"
-PYTHONPATH="$MMCV_ROOT" python -m pytest tests/test_utils/test_setup_env.py -q
-# Drop the PYTHONPATH export only if mmcv is installed from the wheel; editable installs still need it.
+PYTHONPATH="${MMENGINE_ROOT}:${MMCV_ROOT}" python -m pytest tests/test_utils/test_setup_env.py -q
+# Drop the PYTHONPATH export only if mmengine/mmcv are installed from wheels; editable installs still need it.
 
 # Quick import verification (optional)
-PYTHONPATH="$MMCV_ROOT" python -c "import mmcv, mmdet3d; print(mmcv.__version__, mmdet3d.__version__)"
+PYTHONPATH="${MMENGINE_ROOT}:${MMCV_ROOT}" python -c "import mmengine, mmcv, mmdet3d; print(mmengine.__version__, mmcv.__version__, mmdet3d.__version__)"
 
 # BEVFusion custom kernels on XPU (development checkout)
 cd "$MMDET3D_ROOT"
-PYTHONPATH="$MMCV_ROOT" python projects/BEVFusion/tests/xpu_ops_stress.py
+PYTHONPATH="${MMENGINE_ROOT}:${MMCV_ROOT}" python projects/BEVFusion/tests/xpu_ops_stress.py
 ```
 
 ## End-to-End Sanity
@@ -170,7 +208,7 @@ The full NuScenes evaluation is long; to confirm the loop works on XPU, watch fo
 
 ```bash
 cd "$MMDET3D_ROOT"
-PYTHONPATH="${MMCV_ROOT}:${MMDET3D_ROOT}:${PYTHONPATH}" \
+PYTHONPATH="${MMENGINE_ROOT}:${MMCV_ROOT}:${MMDET3D_ROOT}:${PYTHONPATH}" \
     SYCL_DEVICE_FILTER=level_zero:gpu \
     python tools/test.py \
     projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py \
