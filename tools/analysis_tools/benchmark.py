@@ -1,6 +1,20 @@
+"""Benchmark script with local path bootstrapping for direct execution."""
+
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
+from contextlib import nullcontext
+import os
+import sys
 import time
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
+TOOLS_DIR = os.path.join(PROJECT_ROOT, 'tools')
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+if TOOLS_DIR not in sys.path:
+    sys.path.insert(0, TOOLS_DIR)
 
 import torch
 from mmengine import Config
@@ -10,7 +24,40 @@ from mmengine.registry import init_default_scope
 from mmengine.runner import Runner, autocast, load_checkpoint
 
 from mmdet3d.registry import MODELS
-from tools.misc.fuse_conv_bn import fuse_module
+
+try:
+    from tools.misc.fuse_conv_bn import fuse_module
+except ModuleNotFoundError:
+    from misc.fuse_conv_bn import fuse_module
+
+_MMENGINE_AUTOD_TYPES = {'cuda', 'cpu', 'mlu', 'npu', 'musa'}
+
+
+def _ensure_torch_device(device_like):
+    if isinstance(device_like, torch.device):
+        return device_like
+    if isinstance(device_like, str):
+        return torch.device(device_like)
+    raise TypeError(f'Unsupported device type: {type(device_like)}')
+
+
+def _resolve_amp_dtype(device_like):
+    torch_device = _ensure_torch_device(device_like)
+    if torch_device.type in ('xpu', 'cpu'):
+        return torch.bfloat16
+    if torch_device.type == 'cuda':
+        return torch.float16
+    return torch.float16
+
+
+def _autocast_context(device_like, dtype, enabled):
+    if not enabled:
+        return nullcontext()
+    torch_device = _ensure_torch_device(device_like)
+    device_type = torch_device.type
+    if device_type in _MMENGINE_AUTOD_TYPES:
+        return autocast(device_type=device_type, dtype=dtype, enabled=True)
+    return torch.autocast(device_type=device_type, dtype=dtype)
 
 
 def parse_args():
@@ -82,7 +129,9 @@ def main():
     load_checkpoint(model, args.checkpoint, map_location='cpu')
     if args.fuse_conv_bn:
         model = fuse_module(model)
-    device = torch.device(args.device) if args.device is not None else get_device()
+    raw_device = args.device if args.device is not None else get_device()
+    device = _ensure_torch_device(raw_device)
+    amp_dtype = _resolve_amp_dtype(device)
     model.to(device)
     model.eval()
 
@@ -90,12 +139,13 @@ def main():
     pure_inf_time = 0.0
     processed = 0
 
-    def _synchronize(dev: torch.device) -> None:
-        if dev.type == 'cuda' and hasattr(torch, 'cuda') and torch.cuda.is_available():
+    def _synchronize(dev) -> None:
+        torch_device = _ensure_torch_device(dev)
+        if torch_device.type == 'cuda' and hasattr(torch, 'cuda') and torch.cuda.is_available():
             torch.cuda.synchronize()
-        elif dev.type == 'xpu' and hasattr(torch, 'xpu'):
+        elif torch_device.type == 'xpu' and hasattr(torch, 'xpu'):
             torch.xpu.synchronize()
-        elif dev.type == 'mps' and hasattr(torch, 'mps'):
+        elif torch_device.type == 'mps' and hasattr(torch, 'mps'):
             torch.mps.synchronize()
 
     with torch.inference_mode():
@@ -106,7 +156,7 @@ def main():
             _synchronize(device)
             start_time = time.perf_counter()
 
-            with autocast(enabled=args.amp):
+            with _autocast_context(device, amp_dtype, args.amp):
                 model.test_step(data)
 
             _synchronize(device)

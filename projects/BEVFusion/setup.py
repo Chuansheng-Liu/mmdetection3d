@@ -27,8 +27,11 @@ def make_backend_ext(name,
 
     force_cuda = os.getenv('FORCE_CUDA', '0') == '1'
     force_xpu = os.getenv('FORCE_XPU', '0') == '1'
+    disable_xpu = os.getenv('DISABLE_XPU', '0') == '1'
+
     has_cuda = torch.cuda.is_available() or force_cuda
-    has_xpu = force_xpu and hasattr(torch, 'xpu') and torch.xpu.is_available()
+    xpu_runtime_available = hasattr(torch, 'xpu') and torch.xpu.is_available()
+    has_xpu = (force_xpu or xpu_runtime_available) and not disable_xpu
 
     if has_cuda:
         define_macros.append(('WITH_CUDA', None))

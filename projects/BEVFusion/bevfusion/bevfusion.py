@@ -151,7 +151,14 @@ class BEVFusion(Base3DDetector):
         x = x.view(B, int(BN / B), C, H, W)
 
         device_type = x.device.type if isinstance(x, torch.Tensor) else 'cpu'
-        with torch.autocast(device_type=device_type, dtype=torch.float32):
+        if device_type in ('xpu', 'cpu'):
+            autocast_dtype = torch.bfloat16
+        else:
+            autocast_dtype = torch.float16
+        with torch.autocast(
+                device_type=device_type,
+                dtype=autocast_dtype,
+                enabled=device_type in ('cuda', 'cpu', 'xpu')):
             x = self.view_transform(
                 x,
                 points,
