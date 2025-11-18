@@ -86,7 +86,7 @@ After the script finishes, verify that files such as `data/nuscenes/nuscenes_inf
 
 ```bash
 pip install ./p3.13_packages/mmengine-0.10.7-py3-none-any.whl --force-reinstall --no-deps
-pip install ./p3.13_packages/mmdet3d-1.4.0-py3-none-any.whl --no-deps
+pip install ./p3.13_packages/mmdet3d-1.4.0-py3-none-any.whl --no-deps --force-reinstall
 ```
 
 ## 8. Run the End2End test
@@ -100,6 +100,6 @@ pip install ./p3.13_packages/mmdet3d-1.4.0-py3-none-any.whl --no-deps
 
 ## 9. benchmark test
 ```bash
-export PYTHONPATH=$(pwd):$PYTHONPATH && SYCL_DEVICE_FILTER=level-zero:gpu python tools/analysis_tools/benchmark.py projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py ${BEVFUSION_MODEL_DIR}/check
+SYCL_DEVICE_FILTER=level-zero:gpu python tools/analysis_tools/benchmark.py projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py ${BEVFUSION_MODEL_DIR}/check
 points/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d-5239b1af.pth --device xpu:0
 ```

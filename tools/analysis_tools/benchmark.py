@@ -4,17 +4,64 @@
 import argparse
 from contextlib import nullcontext
 import os
+import site
 import sys
 import time
+from pathlib import Path
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
+PROJECT_ROOT_PATH = Path(PROJECT_ROOT)
 TOOLS_DIR = os.path.join(PROJECT_ROOT, 'tools')
 
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 if TOOLS_DIR not in sys.path:
     sys.path.insert(0, TOOLS_DIR)
+
+
+def _ops_dir_has_prebuilt_libs(ops_root: Path) -> bool:
+    if not ops_root.exists():
+        return False
+    for subdir in ('bev_pool', 'voxel'):
+        so_dir = ops_root / subdir
+        if not so_dir.exists() or not any(so_dir.glob('*.so')):
+            return False
+    return True
+
+
+def _candidate_site_dirs():
+    dirs = []
+    for getter in (getattr(site, 'getsitepackages', None),
+                   getattr(site, 'getusersitepackages', None)):
+        if getter is None:
+            continue
+        try:
+            values = getter()
+        except Exception:
+            continue
+        if isinstance(values, str):
+            values = [values]
+        dirs.extend(Path(p) for p in values if p)
+    return dirs
+
+
+def _prefer_installed_bevfusion_ops_if_available():
+    local_ops = PROJECT_ROOT_PATH / 'projects' / 'BEVFusion' / 'bevfusion' / 'ops'
+    if _ops_dir_has_prebuilt_libs(local_ops):
+        return
+
+    for base in _candidate_site_dirs():
+        ops_dir = base / 'projects' / 'BEVFusion' / 'bevfusion' / 'ops'
+        if _ops_dir_has_prebuilt_libs(ops_dir):
+            base_str = str(base)
+            if base_str in sys.path:
+                sys.path.remove(base_str)
+            sys.path.insert(0, base_str)
+            return
+
+
+_prefer_installed_bevfusion_ops_if_available()
 
 import torch
 from mmengine import Config
