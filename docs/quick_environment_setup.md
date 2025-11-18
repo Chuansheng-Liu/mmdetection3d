@@ -97,3 +97,9 @@ pip install ./p3.13_packages/mmdet3d-1.4.0-py3-none-any.whl --no-deps
     "${BEVFUSION_MODEL_DIR}/checkpoints/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d-5239b1af.pth" \
     --cfg-options device=xpu:0
 ```
+
+## 9. benchmark test
+```bash
+export PYTHONPATH=$(pwd):$PYTHONPATH && SYCL_DEVICE_FILTER=level-zero:gpu python tools/analysis_tools/benchmark.py projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py ${BEVFUSION_MODEL_DIR}/check
+points/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d-5239b1af.pth --device xpu:0
+```
