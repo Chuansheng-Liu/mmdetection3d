@@ -48,3 +48,11 @@ repos:
       - id: check-algo-readme
       - id: check-copyright
         args: ["mmdet3d"]  # replace the dir_to_check with your expected directory to check
+  - repo: local
+    hooks:
+      - id: check-hardcoded-paths
+        name: Check for hardcoded absolute paths
+        entry: python3 .dev_scripts/check_hardcoded_paths.py
+        language: system
+        types: [python]
+        pass_filenames: true
