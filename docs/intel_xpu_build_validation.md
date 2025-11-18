@@ -217,3 +217,17 @@ PYTHONPATH="${MMENGINE_ROOT}:${MMCV_ROOT}:${MMDET3D_ROOT}:${PYTHONPATH}" \
 # Stop once you see two "mmengine - INFO - Epoch(test)" lines.
 ```
 
+## Benchmark test
+Use the mmdetection3d analysis tools to check the model performance:
+
+```bash
+cd "$MMDET3D_ROOT"
+export SYCL_DEVICE_FILTER=level-zero:gpu     
+export CUDA_VISIBLE_DEVICES=   
+
+SYCL_DEVICE_FILTER=level-zero:gpu \
+python tools/analysis_tools/benchmark.py \
+projects/BEVFusion/configs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py \
+"${BEVFUSION_MODEL_DIR}/checkpoints/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d-5239b1af.pth" \
+--device xpu:0 
+```
